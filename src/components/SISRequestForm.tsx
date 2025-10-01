@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, Send, CheckCircle2 } from "lucide-react";
+import { Upload, Send, CheckCircle2, Store } from "lucide-react";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -118,17 +118,19 @@ export default function SISRequestForm() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-muted/30">
-        <Card className="w-full max-w-md text-center shadow-[var(--shadow-medium)]">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-primary/10">
+        <Card className="w-full max-w-md text-center shadow-[var(--shadow-strong)] border-primary/20">
           <CardContent className="pt-16 pb-12">
             <div className="mb-6 flex justify-center">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <CheckCircle2 className="h-10 w-10 text-primary-foreground" />
+              <div className="h-24 w-24 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-[var(--shadow-medium)] animate-scale-in">
+                <CheckCircle2 className="h-12 w-12 text-primary-foreground" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-3">Request Submitted!</h2>
-            <p className="text-muted-foreground">
-              Your SIS request has been successfully submitted. You will receive a confirmation email shortly.
+            <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Request Submitted!
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Your Shop in Shop request has been successfully submitted to the Jumia Onsite team. You will receive a confirmation email shortly.
             </p>
           </CardContent>
         </Card>
@@ -137,14 +139,22 @@ export default function SISRequestForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-muted/30">
-      <Card className="w-full max-w-2xl shadow-[var(--shadow-medium)]">
-        <CardHeader className="space-y-3 pb-8">
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            SIS Request Form
-          </CardTitle>
+    <div className="min-h-screen flex items-center justify-center p-4 md:p-8 bg-gradient-to-br from-primary/5 via-background to-primary/10">
+      <Card className="w-full max-w-3xl shadow-[var(--shadow-strong)] border-primary/20 animate-fade-in">
+        <CardHeader className="space-y-4 pb-8 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/10">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-[var(--shadow-soft)]">
+              <Store className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-3xl md:text-4xl font-bold text-primary">
+                Shop in Shop Request Form
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Jumia Onsite Team</p>
+            </div>
+          </div>
           <CardDescription className="text-base">
-            Submit your Sales Information System request. All fields are required.
+            Submit your Shop in Shop request. All fields are required for processing.
           </CardDescription>
         </CardHeader>
 
@@ -312,14 +322,17 @@ export default function SISRequestForm() {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all duration-300 shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-medium)]"
+              className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 transition-all duration-300 shadow-[var(--shadow-medium)] hover:shadow-[var(--shadow-strong)] hover:scale-[1.02] active:scale-[0.98]"
             >
               {isSubmitting ? (
-                "Submitting..."
+                <span className="flex items-center gap-2">
+                  <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Submitting Request...
+                </span>
               ) : (
                 <>
                   <Send className="mr-2 h-5 w-5" />
-                  Submit Request
+                  Submit to Jumia Onsite Team
                 </>
               )}
             </Button>
