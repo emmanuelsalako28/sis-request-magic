@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Upload, Send, CheckCircle2 } from "lucide-react";
+import { db, storage } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -67,12 +70,34 @@ export default function SISRequestForm() {
     }
 
     setIsSubmitting(true);
-    console.log("Submitting form data:", data);
 
     try {
-      // Simulate API call - In production, this would call your backend
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
+      // Upload logo to Firebase Storage
+      const logoRef = ref(storage, `brand-logos/${Date.now()}_${brandLogo.name}`);
+      await uploadBytes(logoRef, brandLogo);
+      const logoUrl = await getDownloadURL(logoRef);
+
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, "sisRequests"), {
+        email: data.email,
+        requestDate: data.requestDate,
+        kamName: data.kamName,
+        brandName: data.brandName,
+        vendorName: data.vendorName,
+        sisType: data.sisType,
+        retoolLink: data.retoolLink,
+        goLiveDate: data.goLiveDate,
+        logoUrl,
+        createdAt: new Date().toISOString(),
+      });
+
+      console.log("Document written with ID: ", docRef.id);
+
+      // TODO: Send emails to 3 recipients
+      // You'll need to set up Firebase Cloud Functions or use an email service
+      // Example with EmailJS or similar service:
+      // await sendEmailNotification(data, logoUrl);
+
       setIsSubmitted(true);
       toast.success("Request submitted successfully! Check your email for confirmation.");
       
