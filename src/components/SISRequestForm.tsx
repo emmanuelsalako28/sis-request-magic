@@ -74,9 +74,14 @@ export default function SISRequestForm() {
 
     try {
       console.log("Uploading logo to Firebase Storage...");
-      // Upload logo to Firebase Storage
+      // Upload logo to Firebase Storage with timeout safeguard
       const logoRef = ref(storage, `brand-logos/${Date.now()}_${brandLogo.name}`);
-      await uploadBytes(logoRef, brandLogo);
+      const uploadPromise = uploadBytes(logoRef, brandLogo);
+      const timeoutMs = 20000; // 20s timeout to avoid infinite spinner
+      await Promise.race([
+        uploadPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out")), timeoutMs)),
+      ]);
       const logoUrl = await getDownloadURL(logoRef);
       console.log("Logo uploaded successfully:", logoUrl);
 
