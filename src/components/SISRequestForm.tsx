@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Upload, Send, CheckCircle2, Store } from "lucide-react";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -73,20 +73,38 @@ export default function SISRequestForm() {
     console.log("Starting form submission...", data);
 
     try {
-      console.log("Uploading logo to Firebase Storage...");
-      // Upload logo to Firebase Storage with timeout safeguard
+      console.log("Uploading logo to Firebase Storage (resumable)...");
       const logoRef = ref(storage, `brand-logos/${Date.now()}_${brandLogo.name}`);
-      const uploadPromise = uploadBytes(logoRef, brandLogo);
-      const timeoutMs = 20000; // 20s timeout to avoid infinite spinner
-      await Promise.race([
-        uploadPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out")), timeoutMs)),
-      ]);
-      const logoUrl = await getDownloadURL(logoRef);
-      console.log("Logo uploaded successfully:", logoUrl);
 
+      const logoUrl: string = await new Promise((resolve, reject) => {
+        const uploadTask = uploadBytesResumable(logoRef, brandLogo);
+        const timeout = setTimeout(() => {
+          try { uploadTask.cancel(); } catch {}
+          reject(new Error("Upload timed out"));
+        }, 25000);
+
+        uploadTask.on(
+          "state_changed",
+          undefined,
+          (error) => {
+            clearTimeout(timeout);
+            reject(error);
+          },
+          async () => {
+            clearTimeout(timeout);
+            try {
+              const url = await getDownloadURL(logoRef);
+              resolve(url);
+            } catch (e) {
+              reject(e);
+            }
+          }
+        );
+      });
+
+      console.log("Logo uploaded successfully:", logoUrl);
       console.log("Saving to Firestore...");
-      // Save to Firestore
+
       const docRef = await addDoc(collection(db, "sisRequests"), {
         email: data.email,
         requestDate: data.requestDate,
@@ -101,16 +119,9 @@ export default function SISRequestForm() {
       });
 
       console.log("Document written with ID: ", docRef.id);
-
-      // TODO: Send emails to 3 recipients
-      // You'll need to set up Firebase Cloud Functions or use an email service
-      // Example with EmailJS or similar service:
-      // await sendEmailNotification(data, logoUrl);
-
       setIsSubmitted(true);
       toast.success("Request submitted successfully! Check your email for confirmation.");
-      
-      // Reset form after success
+
       setTimeout(() => {
         reset();
         setBrandLogo(null);
@@ -119,10 +130,19 @@ export default function SISRequestForm() {
       }, 3000);
     } catch (error: any) {
       console.error("Submission error details:", error);
-      console.error("Error code:", error?.code);
-      console.error("Error message:", error?.message);
-      const errorMessage = error?.message || "Failed to submit request. Please try again.";
-      toast.error(`Submission failed: ${errorMessage}`);
+      const code = error?.code as string | undefined;
+      const message = error?.message as string | undefined;
+
+      let friendly = message || "Failed to submit request. Please try again.";
+      if (code?.includes("storage/unauthorized")) {
+        friendly = "Upload blocked by Storage rules. Please allow uploads for this bucket (brand-logos/*) or sign in.";
+      } else if (code?.includes("storage/quota-exceeded")) {
+        friendly = "Storage quota exceeded for the bucket.";
+      } else if (message?.toLowerCase().includes("timed out")) {
+        friendly = "Upload timed out. Please check your network or Storage CORS/rules.";
+      }
+
+      toast.error(`Submission failed: ${friendly}`);
     } finally {
       setIsSubmitting(false);
     }
