@@ -70,13 +70,17 @@ export default function SISRequestForm() {
     }
 
     setIsSubmitting(true);
+    console.log("Starting form submission...", data);
 
     try {
+      console.log("Uploading logo to Firebase Storage...");
       // Upload logo to Firebase Storage
       const logoRef = ref(storage, `brand-logos/${Date.now()}_${brandLogo.name}`);
       await uploadBytes(logoRef, brandLogo);
       const logoUrl = await getDownloadURL(logoRef);
+      console.log("Logo uploaded successfully:", logoUrl);
 
+      console.log("Saving to Firestore...");
       // Save to Firestore
       const docRef = await addDoc(collection(db, "sisRequests"), {
         email: data.email,
@@ -108,9 +112,12 @@ export default function SISRequestForm() {
         setLogoPreview("");
         setIsSubmitted(false);
       }, 3000);
-    } catch (error) {
-      console.error("Submission error:", error);
-      toast.error("Failed to submit request. Please try again.");
+    } catch (error: any) {
+      console.error("Submission error details:", error);
+      console.error("Error code:", error?.code);
+      console.error("Error message:", error?.message);
+      const errorMessage = error?.message || "Failed to submit request. Please try again.";
+      toast.error(`Submission failed: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
