@@ -1,0 +1,54 @@
+========================================
+FIREBASE FIRESTORE RULES
+========================================
+Copy everything below and paste into Firebase Console > Firestore Database > Rules tab:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /sisRequests/{docId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+========================================
+FIREBASE STORAGE RULES
+========================================
+Copy everything below and paste into Firebase Console > Storage > Rules tab:
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /brand-logos/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+========================================
+STEPS TO APPLY:
+========================================
+1. Go to Firebase Console: https://console.firebase.google.com/
+2. Select your project: new-sis-form-worked-on
+3. For Firestore:
+   - Click "Firestore Database" in left menu
+   - Click "Rules" tab
+   - Delete everything and paste the FIRESTORE RULES above
+   - Click "Publish"
+4. For Storage:
+   - Click "Storage" in left menu
+   - Click "Rules" tab
+   - Delete everything and paste the STORAGE RULES above
+   - Click "Publish"
+5. Wait 1 minute for rules to propagate
+6. Try submitting your form again
