@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Upload, Send, CheckCircle2, Store } from "lucide-react";
 import { db, storage } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 const formSchema = z.object({
@@ -64,48 +64,14 @@ export default function SISRequestForm() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!brandLogo) {
-      toast.error("Please upload a brand logo");
-      return;
-    }
-
+    // Do not block submission on logo upload. Save to Firestore first, upload logo in background.
     setIsSubmitting(true);
     console.log("Starting form submission...", data);
 
     try {
-      console.log("Uploading logo to Firebase Storage (resumable)...");
-      const logoRef = ref(storage, `brand-logos/${Date.now()}_${brandLogo.name}`);
+      console.log("Saving request to Firestore (without waiting for logo upload)...");
 
-      const logoUrl: string = await new Promise((resolve, reject) => {
-        const uploadTask = uploadBytesResumable(logoRef, brandLogo);
-        const timeout = setTimeout(() => {
-          try { uploadTask.cancel(); } catch {}
-          reject(new Error("Upload timed out"));
-        }, 25000);
-
-        uploadTask.on(
-          "state_changed",
-          undefined,
-          (error) => {
-            clearTimeout(timeout);
-            reject(error);
-          },
-          async () => {
-            clearTimeout(timeout);
-            try {
-              const url = await getDownloadURL(logoRef);
-              resolve(url);
-            } catch (e) {
-              reject(e);
-            }
-          }
-        );
-      });
-
-      console.log("Logo uploaded successfully:", logoUrl);
-      console.log("Saving to Firestore...");
-
-      const docRef = await addDoc(collection(db, "sisRequests"), {
+      const basePayload = {
         email: data.email,
         requestDate: data.requestDate,
         kamName: data.kamName,
@@ -114,35 +80,65 @@ export default function SISRequestForm() {
         sisType: data.sisType,
         retoolLink: data.retoolLink,
         goLiveDate: data.goLiveDate,
-        logoUrl,
+        logoUrl: null as string | null,
+        uploadStatus: (brandLogo ? "pending" : "none") as "pending" | "none",
         createdAt: new Date().toISOString(),
-      });
+      };
 
-      console.log("Document written with ID: ", docRef.id);
+      const docRef = await addDoc(collection(db, "sisRequests"), basePayload);
+      console.log("Document created with ID:", docRef.id);
+
+      // Start background upload if a logo was provided
+      if (brandLogo) {
+        const path = `brand-logos/${docRef.id}_${Date.now()}_${brandLogo.name}`;
+        console.log("Starting background logo upload to:", path);
+        const logoRef = ref(storage, path);
+        const uploadTask = uploadBytesResumable(logoRef, brandLogo);
+
+        uploadTask.on(
+          "state_changed",
+          undefined,
+          async (error) => {
+            console.error("Background logo upload failed:", error);
+            try {
+              await updateDoc(doc(db, "sisRequests", docRef.id), {
+                uploadStatus: "failed",
+                uploadError: error?.message || "Upload failed",
+              } as any);
+            } catch (e) {
+              console.error("Failed to update document after upload error:", e);
+            }
+            toast.error("Logo upload failed, but your request was saved.");
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(logoRef);
+              await updateDoc(doc(db, "sisRequests", docRef.id), {
+                logoUrl: url,
+                logoFileName: brandLogo.name,
+                uploadStatus: "complete",
+              } as any);
+              console.log("Background logo uploaded. URL set on document.");
+            } catch (e) {
+              console.error("Could not finalize logo upload:", e);
+            }
+          }
+        );
+      }
+
       setIsSubmitted(true);
-      toast.success("Request submitted successfully! Check your email for confirmation.");
+      toast.success(brandLogo ? "Request submitted! Logo will finish uploading in background." : "Request submitted successfully!");
 
       setTimeout(() => {
         reset();
         setBrandLogo(null);
         setLogoPreview("");
         setIsSubmitted(false);
-      }, 3000);
+      }, 2500);
     } catch (error: any) {
-      console.error("Submission error details:", error);
-      const code = error?.code as string | undefined;
+      console.error("Submission error details (Firestore stage):", error);
       const message = error?.message as string | undefined;
-
-      let friendly = message || "Failed to submit request. Please try again.";
-      if (code?.includes("storage/unauthorized")) {
-        friendly = "Upload blocked by Storage rules. Please allow uploads for this bucket (brand-logos/*) or sign in.";
-      } else if (code?.includes("storage/quota-exceeded")) {
-        friendly = "Storage quota exceeded for the bucket.";
-      } else if (message?.toLowerCase().includes("timed out")) {
-        friendly = "Upload timed out. Please check your network or Storage CORS/rules.";
-      }
-
-      toast.error(`Submission failed: ${friendly}`);
+      toast.error(`Submission failed: ${message || "Unable to save request."}`);
     } finally {
       setIsSubmitting(false);
     }
