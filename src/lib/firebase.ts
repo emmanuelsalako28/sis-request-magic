@@ -3,15 +3,15 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCvoGYOYwR1elou-xah0fbAY38zKZO2Xwo",
-  authDomain: "sis-project-3950f.firebaseapp.com",
-  projectId: "sis-project-3950f",
-  storageBucket: "sis-project-3950f.appspot.com",
-  messagingSenderId: "232113794323",
-  appId: "1:232113794323:web:b62c081b0fa5d1413f3ee6"
+  apiKey: "AIzaSyBtNlclxXUDfVZ3NNUPWk7en4Y1_Hts4vA",
+  authDomain: "new-sis-form-worked-on.firebaseapp.com",
+  projectId: "new-sis-form-worked-on",
+  storageBucket: "new-sis-form-worked-on.firebasestorage.app",
+  messagingSenderId: "628529265979",
+  appId: "1:628529265979:web:9991dd3cec5066e8a70b1e"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export const storage = getStorage(app, "gs://sis-project-3950f.appspot.com");
+export const storage = getStorage(app);
