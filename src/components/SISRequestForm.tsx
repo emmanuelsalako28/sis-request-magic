@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, Send, CheckCircle2, Store } from "lucide-react";
-import { db, storage } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { Send, CheckCircle2, Store } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -24,14 +23,13 @@ const formSchema = z.object({
   }),
   retoolLink: z.string().url("Please enter a valid URL").or(z.literal("")),
   goLiveDate: z.string().nonempty("Go-live date is required"),
+  brandLogoUrl: z.string().url("Please enter a valid image URL").or(z.literal("")),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 export default function SISRequestForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [brandLogo, setBrandLogo] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string>("");
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const {
@@ -47,31 +45,15 @@ export default function SISRequestForm() {
 
   const sisType = watch("sisType");
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File size should be less than 5MB");
-        return;
-      }
-      setBrandLogo(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const onSubmit = async (data: FormData) => {
     // Do not block submission on logo upload. Save to Firestore first, upload logo in background.
     setIsSubmitting(true);
     console.log("Starting form submission...", data);
 
     try {
-      console.log("Saving request to Firestore (without waiting for logo upload)...");
+      console.log("Saving request to Firestore...");
 
-      const basePayload = {
+      const payload = {
         email: data.email,
         requestDate: data.requestDate,
         kamName: data.kamName,
@@ -80,59 +62,18 @@ export default function SISRequestForm() {
         sisType: data.sisType,
         retoolLink: data.retoolLink,
         goLiveDate: data.goLiveDate,
-        logoUrl: null as string | null,
-        uploadStatus: (brandLogo ? "pending" : "none") as "pending" | "none",
+        brandLogoUrl: data.brandLogoUrl || null,
         createdAt: new Date().toISOString(),
       };
 
-      const docRef = await addDoc(collection(db, "sisRequests"), basePayload);
+      const docRef = await addDoc(collection(db, "sisRequests"), payload);
       console.log("Document created with ID:", docRef.id);
 
-      // Start background upload if a logo was provided
-      if (brandLogo) {
-        const path = `brand-logos/${docRef.id}_${Date.now()}_${brandLogo.name}`;
-        console.log("Starting background logo upload to:", path);
-        const logoRef = ref(storage, path);
-        const uploadTask = uploadBytesResumable(logoRef, brandLogo);
-
-        uploadTask.on(
-          "state_changed",
-          undefined,
-          async (error) => {
-            console.error("Background logo upload failed:", error);
-            try {
-              await updateDoc(doc(db, "sisRequests", docRef.id), {
-                uploadStatus: "failed",
-                uploadError: error?.message || "Upload failed",
-              } as any);
-            } catch (e) {
-              console.error("Failed to update document after upload error:", e);
-            }
-            toast.error("Logo upload failed, but your request was saved.");
-          },
-          async () => {
-            try {
-              const url = await getDownloadURL(logoRef);
-              await updateDoc(doc(db, "sisRequests", docRef.id), {
-                logoUrl: url,
-                logoFileName: brandLogo.name,
-                uploadStatus: "complete",
-              } as any);
-              console.log("Background logo uploaded. URL set on document.");
-            } catch (e) {
-              console.error("Could not finalize logo upload:", e);
-            }
-          }
-        );
-      }
-
       setIsSubmitted(true);
-      toast.success(brandLogo ? "Request submitted! Logo will finish uploading in background." : "Request submitted successfully!");
+      toast.success("Request submitted successfully!");
 
       setTimeout(() => {
         reset();
-        setBrandLogo(null);
-        setLogoPreview("");
         setIsSubmitted(false);
       }, 2500);
     } catch (error: any) {
@@ -311,38 +252,21 @@ export default function SISRequestForm() {
               </div>
             </div>
 
-            {/* Brand Logo Upload */}
-            <div className="space-y-3">
-              <Label htmlFor="brandLogo">Brand Logo</Label>
-              <div className="flex items-center gap-4">
-                <label
-                  htmlFor="brandLogo"
-                  className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-border hover:border-primary rounded-lg cursor-pointer transition-all duration-300 hover:shadow-[var(--shadow-soft)]"
-                >
-                  <Upload className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    {brandLogo ? "Change Logo" : "Upload Logo"}
-                  </span>
-                  <input
-                    id="brandLogo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="hidden"
-                  />
-                </label>
-                {logoPreview && (
-                  <div className="h-16 w-16 rounded-lg border-2 border-border overflow-hidden bg-muted">
-                    <img
-                      src={logoPreview}
-                      alt="Brand logo preview"
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                )}
-              </div>
+            {/* Brand Logo URL */}
+            <div className="space-y-2">
+              <Label htmlFor="brandLogoUrl">Brand Logo URL (Optional)</Label>
+              <Input
+                id="brandLogoUrl"
+                type="url"
+                placeholder="https://example.com/logo.png"
+                {...register("brandLogoUrl")}
+                className="transition-all duration-300 focus:shadow-[var(--shadow-soft)]"
+              />
+              {errors.brandLogoUrl && (
+                <p className="text-sm text-destructive">{errors.brandLogoUrl.message}</p>
+              )}
               <p className="text-xs text-muted-foreground">
-                PNG, JPG or SVG (max. 5MB)
+                Enter the URL of your brand logo image
               </p>
             </div>
 
